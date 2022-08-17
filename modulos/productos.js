@@ -1,78 +1,96 @@
+const { Contenedor } = require('./handleFiles');
 const express = require('express');
 const { Router } = express;
 
-const productos = [
-  { title: 'Lechuga Hidroponica', price: 250, thumbnail: 'imgLechuga', id: 1 },
-  { title: 'Rucula Hidroponica', price: 450, thumbnail: 'imgRucula', id: 2 },
-  { title: 'Tomatitos Cherry', price: 300, thumbnail: 'imgTomatitos', id: 3 },
-];
+const listProducts = new Contenedor('../productos.json');
+const routerProducts = Router();
 
-const router = Router();
+const authorize = true;
+
+const authorizeMiddle = (metodo) => {
+  return (req, res, next) => {
+    if (authorize) {
+      return next();
+    }
+    return res.status(401).send({ error: -1, descripcion: `ruta ${req.baseUrl} método ${metodo} no autorizada` });
+  };
+};
 
 
-class Productos {
-  constructor(productos) {
-    this.idNvo = productos.length;
-    this.productos = productos;
 
-    router.get('/', this.getAllProducts);
-    router.post('/', this.setProduct);
-    router.get('/:id', this.getProduct);
-    router.put('/:id', this.updateProduct);
-    router.delete('/:id', this.deleteProduct);
+routerProducts.get('/', async (req, res) => {
+  console.log('Get all products received OK');
+  try {
+    let productos = await listProducts.getAll();
+    res.status(201).send(productos);
+  } catch (e) {
+    console.log(e);
   }
+});
 
-  getAllProducts = (req, res) => {
-    console.log('Get todos los productos OK');
-    res.status(201).send(this.productos);
-  };
 
-  getProduct = (req, res) => {
-    console.log('Get producto por ID OK');
-    const { id } = req.params;
-    if (id >= 1 && id <= this.productos.length) {
-      res.status(201).send(this.productos[id - 1]);
+routerProducts.get('/:id', async (req, res) => {
+  console.log('Get product by Id received OK');
+  try {
+    const id = Number(req.params.id);
+    let producto = await listProducts.getById(id);
+    if (producto) {
+      res.status(201).send(producto);
     } else {
-      res.status(400).send({ error: 'no se encontro el producto' });
+      res.status(400).send({ error: 'producto no encontrado' });
     }
-  };
-  setProduct = (req, res) => {
-    console.log('Post producto OK');
-    const productoRecibido = req.body;
-    this.idNvo++;
+  } catch (e) {
+    console.log(e);
+  }
+});
 
-    const productoAGuardar = { ...productoRecibido, id: this.idNvo };
-    this.productos.push(productoAGuardar);
-    res.status(201).send(productoAGuardar);
-  };
 
-  updateProduct = (req, res) => {
-    console.log('Put producto OK');
-    const { id } = req.params;
-    const productoRecibido = req.body;
 
-    if (id >= 1 && id <= this.productos.length) {
-      const productoAGuardar = { ...productoRecibido, id: parseInt(id) };
-      productos.splice(id - 1, 1, productoAGuardar);
-      res.status(201).send(productoAGuardar);
+routerProducts.post('/', authorizeMiddle('post'), async (req, res) => {
+  console.log('Post product received OK');
+  try {
+    const productoACargar = req.body;
+    await listProducts.save(productoACargar);
+    res.status(201).send(productoACargar);
+  } catch (e) {
+    console.log(e);
+  }
+});
+
+
+routerProducts.delete('/:id', authorizeMiddle('delete'), async (req, res) => {
+  console.log('Delete product by Id received OK');
+  try {
+    const id = Number(req.params.id);
+    let producto = await listProducts.getById(id);
+    if (producto) {
+      const productos = await listProducts.deleteById(id);
+      res.status(201).send(productos);
     } else {
-      res.status(400).send({ error: 'No se encontro el producto' });
+      res.status(400).send({ error: 'producto no encontrado' });
     }
-  };
+  } catch (e) {
+    console.log(e);
+  }
+});
 
-  deleteProduct = (req, res) => {
-    console.log('Delete producto OK');
-    const { id } = req.params;
 
-    if (id >= 1 && id <= this.productos.length) {
-      productos.splice(id - 1, 1, { error: 'El producto fue eliminado' });
-      res.status(201).send({ message: 'Deleted producto OK' });
+
+routerProducts.put('/:id', authorizeMiddle('put'), async (req, res) => {
+  console.log('Put product by Id received OK');
+  try {
+    const id = Number(req.params.id);
+    const productoAUpdate = req.body;
+    let producto = await listProducts.getById(id);
+    if (producto) {
+      const productos = await listProducts.updateById(id, productoAUpdate);
+      res.status(201).send(productos);
     } else {
-      res.status(400).send({ error: 'No se encontro el producto' });
+      res.status(400).send({ error: 'producto no encontrado' });
     }
-  };
-}
+  } catch (e) {
+    console.log(e);
+  }
+});
 
-new Productos(productos);
-
-module.exports = router;
+module.exports = routerProducts;
